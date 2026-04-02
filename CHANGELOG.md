@@ -9,6 +9,27 @@ Changes:
 * [ENHANCEMENT]
 * [BUGFIX]
 
+## 0.19.0 / 2026-03-18
+
+Changes:
+
+* [FEATURE] Add support for cleartext authentication #980
+* [FEATURE] Add support for  unix:// prefix addresses #1003
+* [FEATURE] Allow excluding additional schemas from `perf_schema.eventsstatements` #1011
+* [BUGFIX] sys.user_summary: Fix handling of negative current_memory values #985
+
+## 0.18.0 / 2025-09-25
+
+Changes:
+
+* [FEATURE] Add RocksDB context metrics #931
+* [FEATURE] Add command line option to explicitly disable `lock_wait_timeout` #896
+* [FEATURE] Add support for MariaDB GTID in slave status #958
+* [ENHANCEMENT] Review regex declarations in innodb and global variables collectors #941
+* [ENHANCEMENT] Mixin: Use `std.parseYaml` instead of Tanka native function #935
+* [ENHANCEMENT] Move exporter flags to main package #967
+* [BUGFIX] Fixed the issue of authentication failure when the password contains the `#` symbol #937
+
 ## 0.17.2 / 2025-02-25
 
 Changes:

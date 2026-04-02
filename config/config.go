@@ -48,6 +48,10 @@ var (
 		Loose: true,
 		// MySQL ini file can have boolean keys.
 		AllowBooleanKeys: true,
+		// Ignore the # character in the line to avoid password parsing failure when the MySQL password contains the # symbol
+		IgnoreInlineComment: true,
+		// Remove the first and last quotation marks
+		UnescapeValueDoubleQuotes: true,
 	}
 
 	err error
@@ -63,6 +67,7 @@ type MySqlConfig struct {
 	Host                  string `ini:"host"`
 	Port                  int    `ini:"port"`
 	Socket                string `ini:"socket"`
+	EnableCleartextPlugin bool   `ini:"enable-cleartext-plugin"`
 	SslCa                 string `ini:"ssl-ca"`
 	SslCert               string `ini:"ssl-cert"`
 	SslKey                string `ini:"ssl-key"`
@@ -102,16 +107,24 @@ func (ch *MySqlConfigHandler) ReloadConfig(filename string, mysqldAddress string
 		return fmt.Errorf("failed to load config from %s: %w", filename, err)
 	}
 
-	if host, port, err = net.SplitHostPort(mysqldAddress); err != nil {
-		return fmt.Errorf("failed to parse address: %w", err)
-	}
-
 	if clientSection := cfg.Section("client"); clientSection != nil {
-		if cfgHost := clientSection.Key("host"); cfgHost.String() == "" {
-			cfgHost.SetValue(host)
-		}
-		if cfgPort := clientSection.Key("port"); cfgPort.String() == "" {
-			cfgPort.SetValue(port)
+		// Check if mysqldAddress is a unix socket
+		if prefix := "unix://"; strings.HasPrefix(mysqldAddress, prefix) {
+			socketPath := mysqldAddress[len(prefix):]
+			if cfgSocket := clientSection.Key("socket"); cfgSocket.String() == "" {
+				cfgSocket.SetValue(socketPath)
+			}
+		} else {
+			// Parse as TCP address (host:port)
+			if host, port, err = net.SplitHostPort(mysqldAddress); err != nil {
+				return fmt.Errorf("failed to parse address: %w", err)
+			}
+			if cfgHost := clientSection.Key("host"); cfgHost.String() == "" {
+				cfgHost.SetValue(host)
+			}
+			if cfgPort := clientSection.Key("port"); cfgPort.String() == "" {
+				cfgPort.SetValue(port)
+			}
 		}
 		if cfgUser := clientSection.Key("user"); cfgUser.String() == "" {
 			cfgUser.SetValue(mysqldUser)
@@ -203,6 +216,10 @@ func (m MySqlConfig) FormDSN(target string) (string, error) {
 			}
 			config.TLSConfig = "custom"
 		}
+	}
+
+	if m.EnableCleartextPlugin {
+		config.AllowCleartextPasswords = true
 	}
 
 	return config.FormatDSN(), nil

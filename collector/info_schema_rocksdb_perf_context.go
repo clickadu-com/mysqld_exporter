@@ -1,4 +1,4 @@
-// Copyright 2018 The Prometheus Authors
+// Copyright 2025 The Prometheus Authors
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -33,6 +33,7 @@ const rocksdbPerfContextQuery = `
                 `
 
 // Metric descriptors.
+var informationSchemaRocksDBLabels = []string{"schema", "table", "part"}
 var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 	vtype prometheus.ValueType
 	desc  *prometheus.Desc
@@ -42,7 +43,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_user_key_comparison_count"),
 			"Total number of user key comparisons performed in binary search.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOCK_CACHE_HIT_COUNT": {
@@ -50,7 +51,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_block_cache_hit_count"),
 			"Total number of block read operations from cache.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOCK_READ_COUNT": {
@@ -58,7 +59,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_block_read_count"),
 			"Total number of block read operations from disk.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOCK_READ_BYTE": {
@@ -66,7 +67,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_block_read_byte"),
 			"Total number of bytes read from disk.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"GET_READ_BYTES": {
@@ -74,7 +75,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_get_read_bytes"),
 			"Number of bytes read during Get operations.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"MULTIGET_READ_BYTES": {
@@ -82,7 +83,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_multiget_read_bytes"),
 			"Number of bytes read during MultiGet operations.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"ITER_READ_BYTES": {
@@ -90,7 +91,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_iter_read_bytes"),
 			"Number of bytes read during iterator operations.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"INTERNAL_KEY_SKIPPED_COUNT": {
@@ -98,7 +99,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_internal_key_skipped_count"),
 			"Count of internal keys skipped during operations.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"INTERNAL_DELETE_SKIPPED_COUNT": {
@@ -106,7 +107,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_internal_delete_skipped_count"),
 			"Count of internal delete operations that were skipped.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"INTERNAL_RECENT_SKIPPED_COUNT": {
@@ -114,7 +115,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_internal_recent_skipped_count"),
 			"Count of recently skipped internal operations.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"INTERNAL_MERGE_COUNT": {
@@ -122,7 +123,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_internal_merge_count"),
 			"Total number of internal merge operations.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"GET_FROM_MEMTABLE_COUNT": {
@@ -130,7 +131,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_get_from_memtable_count"),
 			"Number of Get operations served from the memtable.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"SEEK_ON_MEMTABLE_COUNT": {
@@ -138,7 +139,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_seek_on_memtable_count"),
 			"Count of seek operations in the memtable.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"NEXT_ON_MEMTABLE_COUNT": {
@@ -146,7 +147,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_next_on_memtable_count"),
 			"Count of next operations in the memtable.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"PREV_ON_MEMTABLE_COUNT": {
@@ -154,7 +155,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_prev_on_memtable_count"),
 			"Count of previous operations in the memtable.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"SEEK_CHILD_SEEK_COUNT": {
@@ -162,7 +163,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_seek_child_seek_count"),
 			"Count of child seek operations in RocksDB.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOOM_MEMTABLE_HIT_COUNT": {
@@ -170,7 +171,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_bloom_memtable_hit_count"),
 			"Count of successful hits in the bloom filter for memtable searches.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOOM_MEMTABLE_MISS_COUNT": {
@@ -178,7 +179,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_bloom_memtable_miss_count"),
 			"Count of misses in the bloom filter for memtable searches.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOOM_SST_HIT_COUNT": {
@@ -186,7 +187,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_bloom_sst_hit_count"),
 			"Count of successful hits in the bloom filter for SSTable searches.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"BLOOM_SST_MISS_COUNT": {
@@ -194,7 +195,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_bloom_sst_miss_count"),
 			"Count of misses in the bloom filter for SSTable searches.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"KEY_LOCK_WAIT_COUNT": {
@@ -202,7 +203,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_key_lock_wait_count"),
 			"Count of key lock wait events in RocksDB.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"IO_BYTES_WRITTEN": {
@@ -210,7 +211,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_io_bytes_written"),
 			"Total number of bytes written by I/O operations in RocksDB.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 	"IO_BYTES_READ": {
@@ -218,7 +219,7 @@ var informationSchemaRocksDBPerfContextMetrics = map[string]struct {
 		prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, informationSchema, "rocksdb_perf_context_io_bytes_read"),
 			"Total number of bytes read by I/O operations in RocksDB.",
-			[]string{"schema", "table", "part"}, nil,
+			informationSchemaRocksDBLabels, nil,
 		),
 	},
 }

@@ -89,7 +89,6 @@ func TestBin(t *testing.T) {
 	portStart := 56000
 	t.Run(binName, func(t *testing.T) {
 		for _, f := range tests {
-			f := f // capture range variable
 			fName := runtime.FuncForPC(reflect.ValueOf(f).Pointer()).Name()
 			portStart++
 			data := bin{
@@ -175,14 +174,16 @@ label {
       </div>
       
       
+      
       <div id="pprof">
       Download a detailed report of resource usage (pprof format, from the Go runtime):
       <ul>
-        <li><a href="debug/pprof/heap">heap usage (memory)</a>
-        <li><a href="debug/pprof/profile?seconds=60">CPU usage (60 second profile)</a>
+        <li><a href="/debug/pprof/heap">heap usage (memory)</a>
+        <li><a href="/debug/pprof/profile?seconds=60">CPU usage (60 second profile)</a>
       </ul>
-      To visualize and share profiles you can upload to <a href="https://pprof.me" target="_blank">pprof.me</a>
+      To visualize and share profiles you can upload to <a href="https://pprof.me" target="_blank" rel="noopener noreferrer">pprof.me</a>
       </div>
+      
     </main>
   </body>
 </html>
@@ -282,21 +283,26 @@ func Test_filterScrapers(t *testing.T) {
 		args args
 		want []collector.Scraper
 	}{
-		{"args_appears_in_collector",
+		{
+			"args_appears_in_collector",
 			args{
 				[]collector.Scraper{collector.ScrapeGlobalStatus{}},
 				[]string{collector.ScrapeGlobalStatus{}.Name()},
 			},
 			[]collector.Scraper{
 				collector.ScrapeGlobalStatus{},
-			}},
-		{"args_absent_in_collector",
+			},
+		},
+		{
+			"args_absent_in_collector",
 			args{
 				[]collector.Scraper{collector.ScrapeGlobalStatus{}},
 				[]string{collector.ScrapeGlobalVariables{}.Name()},
 			},
-			[]collector.Scraper{collector.ScrapeGlobalStatus{}}},
-		{"respect_params",
+			[]collector.Scraper{collector.ScrapeGlobalStatus{}},
+		},
+		{
+			"respect_params",
 			args{
 				[]collector.Scraper{
 					collector.ScrapeGlobalStatus{},
@@ -329,44 +335,51 @@ func Test_getScrapeTimeoutSeconds(t *testing.T) {
 		wantTimeout float64
 		wantErr     bool
 	}{
-		{"no_timeout_header",
+		{
+			"no_timeout_header",
 			args{},
 			0, false,
 		},
-		{"zero_timeout_header",
+		{
+			"zero_timeout_header",
 			args{
 				timeoutHeader: "0",
 			},
 			0, false,
 		},
-		{"negative_timeout_header",
+		{
+			"negative_timeout_header",
 			args{
 				timeoutHeader: "-5",
 			},
 			0, true,
 		},
-		{"offset_greater_than_timeout",
+		{
+			"offset_greater_than_timeout",
 			args{
 				timeoutHeader: "5",
 				offset:        6,
 			},
 			0, true,
 		},
-		{"offset_equal_timeout",
+		{
+			"offset_equal_timeout",
 			args{
 				timeoutHeader: "5",
 				offset:        5,
 			},
 			0, true,
 		},
-		{"offset_less_than_timeout",
+		{
+			"offset_less_than_timeout",
 			args{
 				timeoutHeader: "5",
 				offset:        1,
 			},
 			4, false,
 		},
-		{"no_offset",
+		{
+			"no_offset",
 			args{
 				timeoutHeader: "5",
 			},
