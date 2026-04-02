@@ -74,6 +74,8 @@ type Exporter struct {
 	enableLockWaitTimeout bool
 	lockWaitTimeout       int
 	slowLogFilter         bool
+
+	heartbeatWriter *heartbeatWriter
 }
 
 type ExporterOpt func(*Exporter)
@@ -128,6 +130,14 @@ func New(ctx context.Context, dsn string, scrapers []Scraper, logger *slog.Logge
 	dsn += strings.Join(dsnParams, "&")
 
 	e.dsn = dsn
+	if shouldWriteHeartbeat() {
+		hbw, err := newHeartbeatWriter(ctx, logger, dsn)
+		if err != nil {
+			logger.Error("failed to initialize heartbeat writer", "err", err)
+		} else {
+			hbw.Start()
+		}
+	}
 
 	return e
 }

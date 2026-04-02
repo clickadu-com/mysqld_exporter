@@ -17,10 +17,10 @@ package collector
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,11 +29,17 @@ import (
 const (
 	// heartbeat is the Metric subsystem we use.
 	heartbeat = "heartbeat"
-	// heartbeatQuery is the query used to fetch the stored and current
-	// timestamps. %s will be replaced by the database and table name.
-	// The second column allows gets the server timestamp at the exact same
-	// time the query is run.
-	heartbeatQuery = "SELECT UNIX_TIMESTAMP(ts), UNIX_TIMESTAMP(%s), server_id from `%s`.`%s`"
+
+	// heartbeatQuery fetches:
+	//  1. heartbeat row timestamp
+	//  2. current server timestamp at the same moment
+	//  3. server_id that wrote the heartbeat row
+	//
+	// %s placeholders are:
+	//  - current time expression (NOW(6) / UTC_TIMESTAMP(6))
+	//  - database name
+	//  - table name
+	heartbeatQuery = "SELECT UNIX_TIMESTAMP(ts), UNIX_TIMESTAMP(%s), server_id FROM %s.%s"
 )
 
 var (
@@ -49,29 +55,51 @@ var (
 		"collect.heartbeat.utc",
 		"Use UTC for timestamps of the current server (`pt-heartbeat` is called with `--utc`)",
 	).Bool()
+	collectHeartbeatStaleThreshold = kingpin.Flag(
+		"collect.heartbeat.stale-threshold",
+		"Heartbeat stale threshold in seconds.",
+	).Default("30").Float64()
 )
 
 // Metric descriptors.
 var (
-	HeartbeatStoredDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, heartbeat, "stored_timestamp_seconds"),
-		"Timestamp stored in the heartbeat table.",
-		[]string{"server_id"}, nil,
+	HeartbeatServerTimestampDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, heartbeat, "server_timestamp_seconds"),
+		"Timestamp stored in the heartbeat table for a given server_id.",
+		[]string{"server_id"},
+		nil,
 	)
-	HeartbeatNowDesc = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, heartbeat, "now_timestamp_seconds"),
-		"Timestamp of the current server.",
-		[]string{"server_id"}, nil,
+
+	HeartbeatServerIsLatestDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, heartbeat, "server_is_latest"),
+		"Whether this server_id owns the freshest heartbeat row.",
+		[]string{"server_id"},
+		nil,
+	)
+
+	HeartbeatLagDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, heartbeat, "lag_seconds"),
+		"Replication lag based on the freshest heartbeat row.",
+		nil,
+		nil,
+	)
+
+	HeartbeatLatestServerDesc = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, heartbeat, "latest_server_info"),
+		"Info metric for the server_id with the freshest heartbeat row.",
+		[]string{"server_id"},
+		nil,
 	)
 )
 
 // ScrapeHeartbeat scrapes from the heartbeat table.
 // This is mainly targeting pt-heartbeat, but will work with any heartbeat
 // implementation that writes to a table with two columns:
+//
 // CREATE TABLE heartbeat (
 //
-//	ts                    varchar(26) NOT NULL,
-//	server_id             int unsigned NOT NULL PRIMARY KEY,
+//	server_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+//	ts DATETIME(6) NOT NULL
 //
 // );
 type ScrapeHeartbeat struct{}
@@ -99,53 +127,98 @@ func nowExpr() string {
 	return "NOW(6)"
 }
 
-// Scrape collects data from database connection and sends it over channel as prometheus metric.
+type heartbeatRow struct {
+	ServerID string
+	TS       float64
+	Now      float64
+}
+
+// Scrape collects data from a database connection and sends it over a channel as prometheus metric.
 func (ScrapeHeartbeat) Scrape(ctx context.Context, instance *instance, ch chan<- prometheus.Metric, logger *slog.Logger) error {
+	_ = logger
+
 	db := instance.getDB()
-	query := fmt.Sprintf(heartbeatQuery, nowExpr(), *collectHeartbeatDatabase, *collectHeartbeatTable)
-	heartbeatRows, err := db.QueryContext(ctx, query)
+
+	query := fmt.Sprintf(
+		heartbeatQuery,
+		nowExpr(),
+		quoteIdentifier(*collectHeartbeatDatabase),
+		quoteIdentifier(*collectHeartbeatTable),
+	)
+
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return err
 	}
-	defer heartbeatRows.Close()
+	defer rows.Close()
 
 	var (
-		now, ts  sql.RawBytes
-		serverId int
+		allRows []heartbeatRow
+		latest  *heartbeatRow
 	)
 
-	for heartbeatRows.Next() {
-		if err := heartbeatRows.Scan(&ts, &now, &serverId); err != nil {
-			return err
-		}
-
-		tsFloatVal, err := strconv.ParseFloat(string(ts), 64)
-		if err != nil {
-			return err
-		}
-
-		nowFloatVal, err := strconv.ParseFloat(string(now), 64)
-		if err != nil {
-			return err
-		}
-
-		serverId := strconv.Itoa(serverId)
-
-		ch <- prometheus.MustNewConstMetric(
-			HeartbeatNowDesc,
-			prometheus.GaugeValue,
-			nowFloatVal,
-			serverId,
+	for rows.Next() {
+		var (
+			ts       float64
+			now      float64
+			serverID uint64
 		)
-		ch <- prometheus.MustNewConstMetric(
-			HeartbeatStoredDesc,
-			prometheus.GaugeValue,
-			tsFloatVal,
-			serverId,
-		)
+
+		if err := rows.Scan(&ts, &now, &serverID); err != nil {
+			return err
+		}
+
+		row := heartbeatRow{
+			ServerID: strconv.FormatUint(serverID, 10),
+			TS:       ts,
+			Now:      now,
+		}
+
+		allRows = append(allRows, row)
+
+		// Deterministic winner:
+		// 1. fresher TS wins
+		// 2. on equal TS, bigger server_id wins
+		if latest == nil ||
+			row.TS > latest.TS ||
+			(row.TS == latest.TS && row.ServerID > latest.ServerID) {
+			copyRow := row
+			latest = &copyRow
+		}
 	}
 
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if latest == nil {
+		return nil
+	}
+
+	for _, row := range allRows {
+		ch <- prometheus.MustNewConstMetric(HeartbeatServerTimestampDesc, prometheus.GaugeValue, row.TS, row.ServerID)
+
+		isLatest := 0.0
+		if row.ServerID == latest.ServerID {
+			isLatest = 1.0
+		}
+
+		ch <- prometheus.MustNewConstMetric(HeartbeatServerIsLatestDesc, prometheus.GaugeValue, isLatest, row.ServerID)
+	}
+
+	lag := latest.Now - latest.TS
+	if lag < 0 {
+		lag = 0
+	}
+
+	ch <- prometheus.MustNewConstMetric(HeartbeatLagDesc, prometheus.GaugeValue, lag)
+	ch <- prometheus.MustNewConstMetric(HeartbeatLatestServerDesc, prometheus.GaugeValue, 1, latest.ServerID)
+
 	return nil
+}
+
+func quoteIdentifier(s string) string {
+	return "`" + strings.ReplaceAll(s, "`", "``") + "`"
 }
 
 // check interface

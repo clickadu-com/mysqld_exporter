@@ -1,8 +1,8 @@
-ARG GolangVersion=1.24.0-202502180835
+ARG GolangVersion=1.26.1-202603101216
 ARG ARCH="amd64"
 ARG OS="linux"
 
-FROM nexus.adsrv.wtf/click/golang:${GolangVersion} as build
+FROM nexus.adsrv.wtf/base/golang:${GolangVersion} AS build
 COPY --chown=jenkins:jenkins . ./
 ARG BUILD_VERSION=""
 ARG GOAMD64=v3
