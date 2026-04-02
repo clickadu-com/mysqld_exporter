@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-sql-driver/mysql"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -38,18 +37,6 @@ const (
 	// See: https://github.com/go-sql-driver/mysql#system-variables
 	sessionSettingsParam = `log_slow_filter=%27tmp_table_on_disk,filesort_on_disk%27`
 	timeoutParam         = `lock_wait_timeout=%d`
-)
-
-// Tunable flags.
-var (
-	exporterLockTimeout = kingpin.Flag(
-		"exporter.lock_wait_timeout",
-		"Set a lock_wait_timeout (in seconds) on the connection to avoid long metadata locking.",
-	).Default("2").Int()
-	slowLogFilter = kingpin.Flag(
-		"exporter.log_slow_filter",
-		"Add a log_slow_filter to avoid slow query logging of scrapes. NOTE: Not supported by Oracle MySQL.",
-	).Default("false").Bool()
 )
 
 // metric definition
@@ -83,14 +70,53 @@ type Exporter struct {
 	dsn      string
 	scrapers []Scraper
 	instance *instance
+
+	enableLockWaitTimeout bool
+	lockWaitTimeout       int
+	slowLogFilter         bool
+}
+
+type ExporterOpt func(*Exporter)
+
+func EnableLockWaitTimeout(b bool) ExporterOpt {
+	return func(e *Exporter) {
+		e.enableLockWaitTimeout = b
+	}
+}
+
+func SetLockWaitTimeout(timeout int) ExporterOpt {
+	return func(e *Exporter) {
+		e.lockWaitTimeout = timeout
+	}
+}
+
+func SetSlowLogFilter(b bool) ExporterOpt {
+	return func(e *Exporter) {
+		e.slowLogFilter = b
+	}
 }
 
 // New returns a new MySQL exporter for the provided DSN.
-func New(ctx context.Context, dsn string, scrapers []Scraper, logger *slog.Logger) *Exporter {
-	// Setup extra params for the DSN, default to having a lock timeout.
-	dsnParams := []string{fmt.Sprintf(timeoutParam, *exporterLockTimeout)}
+func New(ctx context.Context, dsn string, scrapers []Scraper, logger *slog.Logger, opts ...ExporterOpt) *Exporter {
+	e := &Exporter{
+		ctx:      ctx,
+		logger:   logger,
+		scrapers: scrapers,
+	}
 
-	if *slowLogFilter {
+	for _, opt := range opts {
+		opt(e)
+	}
+
+	// Setup extra params for the DSN
+	dsnParams := []string{}
+
+	// Only set lock_wait_timeout if it is enabled
+	if e.enableLockWaitTimeout {
+		dsnParams = append(dsnParams, fmt.Sprintf(timeoutParam, e.lockWaitTimeout))
+	}
+
+	if e.slowLogFilter {
 		dsnParams = append(dsnParams, sessionSettingsParam)
 	}
 
@@ -101,12 +127,9 @@ func New(ctx context.Context, dsn string, scrapers []Scraper, logger *slog.Logge
 	}
 	dsn += strings.Join(dsnParams, "&")
 
-	return &Exporter{
-		ctx:      ctx,
-		logger:   logger,
-		dsn:      dsn,
-		scrapers: scrapers,
-	}
+	e.dsn = dsn
+
+	return e
 }
 
 // Describe implements prometheus.Collector.
@@ -150,9 +173,7 @@ func (e *Exporter) scrape(ctx context.Context, ch chan<- prometheus.Metric) floa
 			continue
 		}
 
-		wg.Add(1)
-		go func(scraper Scraper) {
-			defer wg.Done()
+		wg.Go(func() {
 			label := "collect." + scraper.Name()
 			scrapeTime := time.Now()
 			collectorSuccess := 1.0
@@ -162,7 +183,7 @@ func (e *Exporter) scrape(ctx context.Context, ch chan<- prometheus.Metric) floa
 			}
 			ch <- prometheus.MustNewConstMetric(mysqlScrapeCollectorSuccess, prometheus.GaugeValue, collectorSuccess, label)
 			ch <- prometheus.MustNewConstMetric(mysqlScrapeDurationSeconds, prometheus.GaugeValue, time.Since(scrapeTime).Seconds(), label)
-		}(scraper)
+		})
 	}
 	return 1.0
 }
