@@ -270,6 +270,27 @@ func main() {
 			enabledScrapers = append(enabledScrapers, scraper)
 		}
 	}
+
+	if collector.ShouldWriteHeartbeat() {
+		var dsn string
+		ctx := context.Background()
+
+		cfg := c.GetConfig()
+		cfgsection, ok := cfg.Sections["client"]
+		if !ok {
+			logger.Error("Failed to parse section [client] from config file", "err", err)
+		}
+		if dsn, err = cfgsection.FormDSN(""); err != nil {
+			logger.Error("Failed to form dsn from section [client]", "err", err)
+		}
+		hbw, err := collector.NewHeartbeatWriter(ctx, logger, dsn)
+		if err != nil {
+			logger.Error("failed to initialize heartbeat writer", "err", err)
+		} else {
+			hbw.Start()
+		}
+	}
+
 	handlerFunc := newHandler(enabledScrapers, logger)
 	http.Handle(*metricsPath, promhttp.InstrumentMetricHandler(prometheus.DefaultRegisterer, handlerFunc))
 	if *metricsPath != "/" && *metricsPath != "" {

@@ -55,10 +55,6 @@ var (
 		"collect.heartbeat.utc",
 		"Use UTC for timestamps of the current server (`pt-heartbeat` is called with `--utc`)",
 	).Bool()
-	collectHeartbeatStaleThreshold = kingpin.Flag(
-		"collect.heartbeat.stale-threshold",
-		"Heartbeat stale threshold in seconds.",
-	).Default("30").Float64()
 )
 
 // Metric descriptors.
