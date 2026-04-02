@@ -34,21 +34,21 @@ const (
 	heartbeatServerIDQuery = `SELECT @@global.server_id`
 )
 
-type heartbeatWriter struct {
+type HeartbeatWriter struct {
 	ctx      context.Context
 	logger   *slog.Logger
-	dsn      string
+	instance *instance
 	interval time.Duration
 	timeout  time.Duration
 	writerID string
 }
 
-func shouldWriteHeartbeat() bool {
+func ShouldWriteHeartbeat() bool {
 	return collectHeartbeatWrite != nil && *collectHeartbeatWrite
 }
 
 func heartbeatWriterConfigured() error {
-	if !shouldWriteHeartbeat() {
+	if !ShouldWriteHeartbeat() {
 		return nil
 	}
 	if collectHeartbeatWriteInterval == nil || *collectHeartbeatWriteInterval <= 0 {
@@ -66,27 +66,34 @@ func heartbeatWriterConfigured() error {
 	return nil
 }
 
-func newHeartbeatWriter(ctx context.Context, logger *slog.Logger, dsn string) (*heartbeatWriter, error) {
+func NewHeartbeatWriter(ctx context.Context, logger *slog.Logger, dsn string) (*HeartbeatWriter, error) {
 	if err := heartbeatWriterConfigured(); err != nil {
 		return nil, err
 	}
 
-	return &heartbeatWriter{
+	inst, err := newInstance(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &HeartbeatWriter{
 		ctx:      ctx,
 		logger:   logger,
-		dsn:      dsn,
+		instance: inst,
 		interval: *collectHeartbeatWriteInterval,
 		timeout:  *collectHeartbeatWriteTimeout,
 	}, nil
 }
 
-func (w *heartbeatWriter) Start() {
+func (w *HeartbeatWriter) Start() {
+	w.logger.Info("starting heartbeat writer")
 	go w.loop()
 }
 
-func (w *heartbeatWriter) loop() {
+func (w *HeartbeatWriter) loop() {
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
+	defer w.instance.Close()
 
 	w.tickOnce()
 
@@ -101,23 +108,16 @@ func (w *heartbeatWriter) loop() {
 	}
 }
 
-func (w *heartbeatWriter) tickOnce() {
+func (w *HeartbeatWriter) tickOnce() {
 	ctx, cancel := context.WithTimeout(w.ctx, w.timeout)
 	defer cancel()
 
-	inst, err := newInstance(w.dsn)
-	if err != nil {
-		w.logger.Error("heartbeat writer: failed to create instance", "err", err)
-		return
-	}
-	defer inst.Close()
-
-	if err := inst.Ping(); err != nil {
+	if err := w.instance.Ping(); err != nil {
 		w.logger.Error("heartbeat writer: ping failed", "err", err)
 		return
 	}
 
-	db := inst.getDB()
+	db := w.instance.getDB()
 
 	writable, err := isWritablePrimary(ctx, db)
 	if err != nil {
